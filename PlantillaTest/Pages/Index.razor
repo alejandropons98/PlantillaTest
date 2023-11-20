@@ -1,0 +1,505 @@
+﻿@page "/"
+@using BlazorClient.DTOs.Fields;
+@using BlazorClient.DTOs.PresetValues;
+@using BlazorClient.DTOs.Sections;
+@using BlazorClient.DTOs.Templates;
+@inject MessageService _message
+
+<h1>Ejemplo creacion plantilla</h1>
+
+<Card>
+    @if (current == 0)
+    {
+        <div style="text-align:left;width:100%">
+            <Button Disabled="@disabledSection" OnClick="(()=>Section(new CreateSection(), FormAction.Create))" Type="@ButtonType.Primary" Icon="@IconType.Outline.Check" Size="ButtonSize.Large" Shape="@ButtonShape.Round">Agregar sección</Button>
+        </div>
+        @if (Sections != null)
+        {
+            foreach (var item in Sections)
+            {
+
+                <Divider Style="font-weight:bold">@item.Name</Divider>
+                <div style="text-align:left;width:100%">
+                    <Button Disabled="@disabledField" OnClick="(()=>Field(new CreateField{SectionId = item.Id}, FormAction.Create))" Type="@ButtonType.Primary" Color="Color.Geekblue1" Icon="@IconType.Outline.Check" Size="ButtonSize.Large" Shape="@ButtonShape.Round">Agregar campo</Button>
+                </div>
+
+                if (Fields != null)
+                {
+                    <Row>
+                    @foreach (var field in Fields)
+                    {
+                        if (field.SectionId == item.Id)
+                        {
+                            <AntDesign.Col Span="5" Style="margin-top: 5px; margin-bottom: 5px;">
+                            <label>@field.Name:</label>
+                           <Row>
+                               @if (field.Type == "Lista")
+                {
+                                            <Select TItem="CreatePresetValue" TItemValue="string" DataSource="@PresetValues.Where(x => x.FieldId == field.Id).ToList()"
+                        ValueName="@nameof(CreatePresetValue.Value)" LabelName="@nameof(CreatePresetValue.Value)"></Select>
+                                            <Tooltip Title="Agregar valor">
+                                                <Button Disabled="@disabledValue" OnClick="(()=>Value(new CreatePresetValue{FieldId = field.Id}, FormAction.Create))" Type="@ButtonType.Primary" Shape="@ButtonShape.Circle" Icon="@IconType.Outline.Plus"></Button>
+                                            </Tooltip>
+                                        }
+                                        else if (field.Type == "Imagen")
+                                        {
+                                            <Button Disabled Icon="upload"></Button>
+                                        }
+                                        else
+                                        {
+                                        <TextArea AutoSize="true" Disabled= "true"></TextArea>
+                                        }
+
+
+                                    </Row>
+                            </AntDesign.Col>
+
+                            <AntDesign.Col Span="1"></AntDesign.Col>
+
+                        }
+
+                    }
+                    </Row>
+                    
+                }
+
+            }
+        }
+    }
+    </Card>
+
+
+
+<Modal Title="@_TitleModal"
+       Visible="@_visibleSection"
+       OnOk="@HandleOkSection"
+       Width="700"
+       OnCancel="@HandleCancelSection">
+
+    <Form Model="@newSection"
+          @ref="sectionForm"
+          LabelColSpan="6"
+          ValidateOnChange="false"
+          WrapperColSpan="24">
+
+        @{
+            <FormItem Style="justify-content: center; align-items: center;">
+                @_modalText
+            </FormItem>
+
+            var action = context.Action;
+            if (action == FormAction.Create || action == FormAction.Edit)
+            {
+                <FormItem Label="Nombre">
+                    <Input @bind-Value="@context.Name" />
+                </FormItem>
+            }
+        }
+    </Form>
+</Modal>
+
+<Modal Title="@_TitleModal"
+       Visible="@_visibleField"
+       OnOk="@HandleOkField"
+       Width="700"
+       OnCancel="@HandleCancelField">
+
+    <Form Model="@newField"
+          @ref="fieldForm"
+          LabelColSpan="6"
+          ValidateOnChange="false"
+          WrapperColSpan="24">
+
+        @{
+            <FormItem Style="justify-content: center; align-items: center;">
+                @_modalText
+            </FormItem>
+
+            var action = context.Action;
+            if (action == FormAction.Create || action == FormAction.Edit)
+            {
+                <FormItem Label="Nombre">
+                    <Input @bind-Value="@context.Name" />
+                </FormItem>
+                <FormItem Label="Tipo">
+                    <Select TItem="Item" TItemValue="string" DataSource="@FieldType" @bind-Value="@context.Type"
+                    ValueName="@nameof(Item.Name)" LabelName="@nameof(Item.Name)"></Select>
+                </FormItem>
+
+            }
+        }
+    </Form>
+</Modal>
+
+<Modal Title="@_TitleModal"
+       Visible="@_visibleValue"
+       OnOk="@HandleOkValue"
+       Width="700"
+       OnCancel="@HandleCancelValue">
+
+    <Form Model="@newValue"
+          @ref="valueForm"
+          LabelColSpan="6"
+          ValidateOnChange="false"
+          WrapperColSpan="24">
+
+        @{
+            <FormItem Style="justify-content: center; align-items: center;">
+                @_modalText
+            </FormItem>
+
+            var action = context.Action;
+            if (action == FormAction.Create || action == FormAction.Edit)
+            {
+                <FormItem Label="Valor">
+                    <Input @bind-Value="@context.Value" />
+                </FormItem>
+
+            }
+        }
+    </Form>
+</Modal>
+
+@code{
+
+    private List<GetAllByTemplateRequest> SectionsToRemove { get; set; } = new();
+    private List<GetAllBySectionRequest> FieldsToRemove { get; set; } = new();
+    private List<GetAllByFieldRequest> ValuesToRemove { get; set; } = new();
+
+
+
+    private BlazorClient.DTOs.Templates.CreateTemplate Template { get; set; }
+    private List<CreateSection> Sections { get; set; } = new();
+    private CreateSection newSection { get; set; } = new();
+    private List<CreateField> Fields { get; set; } = new();
+    private CreateField newField { get; set; } = new();
+    private List<CreatePresetValue> PresetValues { get; set; } = new();
+    private CreatePresetValue newValue { get; set; } = new();
+    private int current { get; set; } = 0;
+    private bool processButtonVisible = true;
+    private bool _visible;
+    private bool _visibleSection;
+    private bool _visibleField;
+    private bool _visibleValue;
+    private string Status;
+    private string titleStep1;
+    private string titleStep2;
+    private string titleStep3;
+    private bool CargadoExitoso = false;
+
+    private bool disabledSection = false;
+    private bool disabledField = false;
+    private bool disabledValue = false;
+
+    string _modalText = "";
+    string _TitleModal = "";
+
+    Form<CreateSection> sectionForm;
+    Form<CreateField> fieldForm;
+    Form<CreatePresetValue> valueForm;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        Template = new BlazorClient.DTOs.Templates.CreateTemplate
+            {
+                Id = Guid.NewGuid().ToString(),
+                ProviderId = "12345"
+            };
+
+
+    }
+
+
+
+    private async Task Success(string msj)
+    {
+        await _message.Success(msj);
+    }
+
+    private async Task Error(String msj)
+    {
+        await _message.Error(msj);
+    }
+
+
+
+    // private async Task HandleRemoveSection(string sectionId)
+    // {
+    //     var sectionToRemove = EditSections.Where(x => x.Id == sectionId).FirstOrDefault();
+    //     SectionsToRemove.Add(sectionToRemove);
+    //     EditSections.RemoveAll(x => x.Id == sectionId);
+    //     var fieldsToRemove = EditFields.Where(x => x.SectionId == sectionId).ToList();
+    //     FieldsToRemove.AddRange(fieldsToRemove);
+    //     EditFields.RemoveAll(x => x.SectionId == sectionId);
+
+    //     foreach (var item in fieldsToRemove)
+    //     {
+    //         var valuesToRemove = EditPresetValues.Where(x => x.FieldId == item.Id).ToList();
+    //         ValuesToRemove.AddRange(valuesToRemove);
+    //         EditPresetValues.RemoveAll(x => x.FieldId == item.Id);
+    //     }
+
+    //     await Success("Sección eliminada");
+    //     StateHasChanged();
+    // }
+
+    // private async Task HandleRemoveField(string fieldId)
+    // {
+    //     var fieldToRemove = EditFields.Where(x => x.Id == fieldId).FirstOrDefault();
+    //     EditFields.RemoveAll(x => x.Id == fieldId);
+
+    //     var valuesToRemove = EditPresetValues.Where(x => x.FieldId == fieldId).ToList();
+    //     ValuesToRemove.AddRange(valuesToRemove);
+    //     EditPresetValues.RemoveAll(x => x.FieldId == fieldId);
+
+    //     await Success("Campo eliminado");
+    //     StateHasChanged();
+
+    // }
+
+    // private async Task HandleRemoveValue(string valueId)
+    // {
+    //     ValuesToRemove.Add(EditPresetValues.Where(x => x.Id == valueId).FirstOrDefault());
+    //     EditPresetValues.RemoveAll(x => x.Id == valueId);
+
+
+    //     await Success("Valor eliminado");
+    //     StateHasChanged();
+    // }
+
+
+
+    public void Section(CreateSection item, FormAction r)
+    {
+        newSection.Id = item.Id;
+        newSection.TemplateId = Template.Id;
+        newSection.Name = item.Name;
+        newSection.Action = r;
+
+        if (r.ToString() == "Edit")
+        {
+            _TitleModal = "Editar sección";
+            _modalText = "Editar sección";
+            ShowSectionModal();
+        }
+
+        if (r.ToString() == "Create")
+        {
+            _TitleModal = "Agregar sección";
+            _modalText = "Agregar sección";
+            ShowSectionModal();
+        }
+
+        if (r.ToString() == "Delete")
+        {
+            _TitleModal = "Borrar sección";
+            _modalText = $"Esta seguro que desea borrar la sección '{item.Name}'?";
+            ShowSectionModal();
+        }
+
+        //if (r.ToString() == "Detail")
+        //{
+        //    HandleInfo(BancosLang.bank_detail, item.Nombre, item.NumeroCuenta, item.TipoCuenta, item.CodigoCuenta, item.NombreCuenta, item.CodigoContraCuenta, item.NombreContraCuenta);
+        //}
+
+    }
+
+    public void Field(CreateField item, FormAction r)
+    {
+        newField.Id = item.Id;
+        newField.SectionId = item.SectionId;
+        newField.Name = item.Name;
+        newField.Type = item.Type;
+        newField.Action = r;
+
+        if (r.ToString() == "Edit")
+        {
+            _TitleModal = "Editar campo";
+            _modalText = "Editar campo";
+            ShowFieldModal();
+        }
+
+        if (r.ToString() == "Create")
+        {
+            _TitleModal = "Agregar campo";
+            _modalText = "Agregar campo";
+            ShowFieldModal();
+        }
+
+        if (r.ToString() == "Delete")
+        {
+            _TitleModal = "Borrar campo";
+            _modalText = $"Esta seguro que desea borrar el campo '{item.Name}'?";
+            ShowFieldModal();
+        }
+
+        //if (r.ToString() == "Detail")
+        //{
+        //    HandleInfo(BancosLang.bank_detail, item.Nombre, item.NumeroCuenta, item.TipoCuenta, item.CodigoCuenta, item.NombreCuenta, item.CodigoContraCuenta, item.NombreContraCuenta);
+        //}
+
+    }
+
+    public void Value(CreatePresetValue item, FormAction r)
+    {
+        newValue.FieldId = item.FieldId;
+        newValue.Value = item.Value;
+        newValue.Action = r;
+
+        if (r.ToString() == "Edit")
+        {
+            _TitleModal = "Editar valor";
+            _modalText = "Editar valor";
+            ShowValueModal();
+        }
+
+        if (r.ToString() == "Create")
+        {
+            _TitleModal = "Agregar valor";
+            _modalText = "Agregar valor";
+            ShowValueModal();
+        }
+
+        if (r.ToString() == "Delete")
+        {
+            _TitleModal = "Borrar Valor";
+            _modalText = $"Esta seguro que desea borrar el valor '{item.Value}'?";
+            ShowValueModal();
+        }
+
+        //if (r.ToString() == "Detail")
+        //{
+        //    HandleInfo(BancosLang.bank_detail, item.Nombre, item.NumeroCuenta, item.TipoCuenta, item.CodigoCuenta, item.NombreCuenta, item.CodigoContraCuenta, item.NombreContraCuenta);
+        //}
+
+    }
+
+    private void ShowSectionModal()
+    {
+        _visibleSection = true;
+    }
+
+    private void ShowFieldModal()
+    {
+        _visibleField = true;
+    }
+
+    private void ShowValueModal()
+    {
+        _visibleValue = true;
+    }
+
+    private void HandleCancelSection(MouseEventArgs e)
+    {
+        newSection = new CreateSection();
+        _visibleSection = false;
+        sectionForm.Reset();
+    }
+
+    private void HandleCancelField(MouseEventArgs e)
+    {
+        newField = new CreateField();
+        _visibleField = false;
+        fieldForm.Reset();
+    }
+
+    private void HandleCancelValue(MouseEventArgs e)
+    {
+        newValue = new CreatePresetValue();
+        _visibleValue = false;
+        valueForm.Reset();
+    }
+
+    private async Task HandleOkSection(MouseEventArgs e)
+    {
+        sectionForm.Validate();
+
+        if (!string.IsNullOrEmpty(newSection.Name))
+        {
+            disabledSection = true;
+            _visibleSection = false;
+            if (newSection.Action == FormAction.Create)
+            {
+                newSection.Id = Guid.NewGuid().ToString();
+            }
+            Sections.Add(newSection);
+            StateHasChanged();
+            await Success("Sección agregada");
+            newSection = new();
+            disabledSection = false;
+            Console.WriteLine(Sections.Count);
+
+        }
+        else
+        {
+            Console.WriteLine("NO ENTRE");
+        }
+
+    }
+
+    private async Task HandleOkField(MouseEventArgs e)
+    {
+        fieldForm.Validate();
+
+        if (!string.IsNullOrEmpty(newField.Name))
+        {
+            disabledField = true;
+            _visibleField = false;
+            if (newField.Action == FormAction.Create)
+            {
+                newField.Id = Guid.NewGuid().ToString();
+            }
+            Fields.Add(newField);
+            await Success("Campo agregado");
+            newField = new();
+            disabledField = false;
+            StateHasChanged();
+
+        }
+        else
+        {
+            Console.WriteLine("NO ENTRE");
+        }
+
+    }
+
+
+    private async Task HandleOkValue(MouseEventArgs e)
+    {
+        valueForm.Validate();
+
+        if (!string.IsNullOrEmpty(newValue.Value))
+        {
+            disabledValue = true;
+            _visibleValue = false;
+            PresetValues.Add(newValue);
+            await Success("Valor agregado");
+            newValue = new();
+            disabledValue = false;
+            StateHasChanged();
+
+        }
+        else
+        {
+            Console.WriteLine("NO ENTRE");
+        }
+
+    }
+
+    public enum FormAction { Initial, Edit, Detail, Delete, Create };
+
+    public static List<Item> FieldType = new List<Item>()
+        {
+            new Item(){Value = "1", Name = "Lista"},
+            new Item(){Value = "2", Name = "Texto"},
+            new Item(){Value = "3", Name = "Imagen"},
+        };
+
+    public class Item
+    {
+        public string Value { get; set; }
+        public string Name { get; set; }
+    }
+}
